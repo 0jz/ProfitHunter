@@ -2,91 +2,112 @@ import { StrictMode, useState, type FormEvent } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
   ArrowRight,
-  BadgeDollarSign,
   Check,
-  ChevronRight,
-  CircleDollarSign,
   Copy,
   ExternalLink,
+  FileText,
   Gauge,
-  Globe2,
   Loader2,
-  LockKeyhole,
   Radar,
   Search,
+  ShieldCheck,
   Sparkles,
-  TrendingUp,
   Wallet,
 } from "lucide-react";
 import "./styles.css";
 
-type Opportunity = {
-  name: string;
-  audience: string;
-  price: string;
-  margin: string;
-  score: number;
-  insight: string;
-  signals: string[];
+type AgentStep = {
+  label: string;
+  detail: string;
+  artifact: string;
+  confidence: "High" | "Medium";
 };
 
-const opportunities: Opportunity[] = [
+type Experiment = {
+  title: string;
+  buyer: string;
+  price: string;
+  reason: string;
+  score: number;
+};
+
+const agentSteps: AgentStep[] = [
   {
-    name: "AI Revenue Inbox for boutique agencies",
-    audience: "Design and dev studios selling retainers",
-    price: "$149/mo",
-    margin: "88%",
-    score: 91,
-    insight:
-      "Agencies already pay for CRM, proposal tools, and lead enrichment. The fastest wedge is recovering warm leads that went quiet.",
-    signals: ["Existing spend", "High urgency", "Easy outreach"],
+    label: "Extract ICP and value prop",
+    detail: "Detected that the buyer is not 'small business', but service firms losing warm leads.",
+    artifact: "ICP: boutique agencies with 5-30 retainers",
+    confidence: "High",
   },
   {
-    name: "Menu Margin Optimizer for restaurants",
-    audience: "Independent restaurants with delivery menus",
-    price: "$79/mo",
-    margin: "81%",
-    score: 78,
-    insight:
-      "Clear ROI story, but local owner reach is slower. Strong if paired with done-for-you setup.",
-    signals: ["Visible pain", "Medium CAC", "Serviceable"],
+    label: "Find competitors and spending signals",
+    detail: "Compared CRM, proposal, and lead enrichment tools instead of generic AI assistants.",
+    artifact: "Existing spend: $59-$299/mo per seat",
+    confidence: "High",
   },
   {
-    name: "Figma-to-Quote assistant",
-    audience: "Freelance designers quoting web builds",
-    price: "$19/report",
-    margin: "94%",
-    score: 72,
-    insight:
-      "Simple to ship and high margin, but lower buyer urgency unless bundled with client handoff.",
-    signals: ["Low build cost", "Low ticket", "Crowded"],
+    label: "Generate validation experiments",
+    detail: "Rejected a generic chatbot because it has weak urgency and unclear willingness to pay.",
+    artifact: "Experiment: recover quiet leads in 48h",
+    confidence: "Medium",
+  },
+  {
+    label: "Choose the money test",
+    detail: "Selected refundable preorder over survey feedback because payment is the validation event.",
+    artifact: "Buyer deposit: 1.00 USDC on devnet",
+    confidence: "High",
   },
 ];
 
-const validationSteps = [
-  "Researches search, forums, reviews, and competitor pricing",
-  "Scores product wedges by spend, urgency, margin, and test speed",
-  "Builds a paid offer and checkout experiment",
-  "Collects USDC/SOL validation receipts on devnet",
+const experiments: Experiment[] = [
+  {
+    title: "AI Revenue Inbox",
+    buyer: "Boutique agencies",
+    price: "$149/mo",
+    reason: "High existing spend, direct revenue tie, fast outreach list.",
+    score: 91,
+  },
+  {
+    title: "Menu Margin Optimizer",
+    buyer: "Independent restaurants",
+    price: "$79/mo",
+    reason: "Strong ROI, but slower buyer access and more setup work.",
+    score: 78,
+  },
+  {
+    title: "Figma-to-Quote Assistant",
+    buyer: "Freelance designers",
+    price: "$19/report",
+    reason: "Easy to ship, but lower urgency and lower ticket size.",
+    score: 72,
+  },
 ];
+
+const txHash = "4m5F...9QpD";
 
 function App() {
-  const [isHunting, setIsHunting] = useState(false);
-  const [huntComplete, setHuntComplete] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [hasRun, setHasRun] = useState(true);
+  const [isPaid, setIsPaid] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  function runHunt(event: FormEvent<HTMLFormElement>) {
+  function runAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setHuntComplete(false);
-    setIsHunting(true);
+    setHasRun(false);
+    setIsRunning(true);
     window.setTimeout(() => {
-      setIsHunting(false);
-      setHuntComplete(true);
-    }, 900);
+      setIsRunning(false);
+      setHasRun(true);
+      setIsPaid(false);
+    }, 1100);
   }
 
-  async function copyAddress() {
-    await navigator.clipboard.writeText("7xKXw9Shp6qV7Yq8p2aB");
+  function simulatePayment() {
+    setIsPaid(false);
+    window.setTimeout(() => setIsPaid(true), 800);
+  }
+
+  async function copyTx() {
+    await navigator.clipboard.writeText("4m5FJ2QxDemoDevnetProfitHunter9QpD");
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
@@ -101,13 +122,13 @@ function App() {
           <span>ProfitHunter</span>
         </a>
         <nav className="nav-links" aria-label="Sections">
-          <a href="#agent">Agent</a>
-          <a href="#score">Score</a>
-          <a href="#payment">Solana</a>
+          <a href="#run">Agent loop</a>
+          <a href="#results">Verdict</a>
+          <a href="#proof">Payment proof</a>
         </nav>
         <button className="wallet-button" type="button">
           <Wallet size={17} aria-hidden="true" />
-          <span>7xKX...p2aB</span>
+          <span>Devnet ready</span>
         </button>
       </header>
 
@@ -115,131 +136,116 @@ function App() {
         <div className="hero-copy">
           <p className="eyebrow">
             <Sparkles size={16} aria-hidden="true" />
-            Startup Idea Agent for first-dollar validation
+            Prove it, don't sell it
           </p>
-          <h1>Find the product inside an idea that can actually make money.</h1>
+          <h1>Turn a vague startup idea into a paid demand test.</h1>
           <p className="hero-lede">
-            ProfitHunter researches the market, ranks profitable product wedges,
-            launches a paid experiment, and proves demand with Solana receipts.
+            ProfitHunter runs an agent loop, chooses the most profitable wedge,
+            and proves validation with a buyer payment on Solana.
           </p>
           <div className="hero-actions">
-            <a className="primary-action" href="#agent">
-              Run a hunt
+            <a className="primary-action" href="#run">
+              Watch the agent run
               <ArrowRight size={18} aria-hidden="true" />
             </a>
-            <a className="secondary-action" href="#payment">
-              View payment flow
+            <a className="secondary-action" href="#proof">
+              See payment proof
             </a>
           </div>
         </div>
 
-        <div className="signal-panel" aria-label="Profit validation preview">
-          <div className="signal-header">
+        <div className="demo-card" aria-label="Hackathon demo proof">
+          <div className="demo-header">
             <div>
-              <p className="panel-kicker">Current hunt</p>
-              <h2>AI tools for small service businesses</h2>
+              <p className="panel-kicker">Live demo shape</p>
+              <h2>Idea from audience</h2>
             </div>
             <span className="live-pill">
               <span aria-hidden="true" />
-              Live
+              90 sec
             </span>
           </div>
-          <div className="profit-meter">
-            <div>
-              <span className="meter-value">91</span>
-              <span className="meter-label">Profit score</span>
-            </div>
-            <div className="meter-ring" aria-hidden="true">
-              <span />
-            </div>
-          </div>
-          <div className="evidence-grid">
-            <Evidence label="Target price" value="$149/mo" />
-            <Evidence label="Gross margin" value="88%" />
-            <Evidence label="CAC proxy" value="$22" />
-            <Evidence label="Payback" value="4.4 days" />
+          <p className="demo-quote">
+            "AI tools for small service businesses that can create measurable revenue in 30 days."
+          </p>
+          <div className="proof-strip">
+            <ProofStat label="Verdict" value="Worth testing" />
+            <ProofStat label="Winning wedge" value="Revenue Inbox" />
+            <ProofStat label="Buyer paid" value="1 USDC" />
           </div>
         </div>
       </section>
 
-      <section id="agent" className="agent-workspace" aria-labelledby="agent-title">
+      <section id="run" className="agent-workspace" aria-labelledby="run-title">
         <div className="section-heading">
           <p className="eyebrow">
             <Search size={16} aria-hidden="true" />
-            Hypothesis in, paid experiment out
+            Paste idea, run agent, inspect trace
           </p>
-          <h2 id="agent-title">The agent is optimized for profit, not opinions.</h2>
+          <h2 id="run-title">The demo shows decisions, not just generated text.</h2>
         </div>
 
         <div className="workspace-grid">
-          <form className="hunt-form" onSubmit={runHunt}>
+          <form className="hunt-form" onSubmit={runAgent}>
             <div className="field">
-              <label htmlFor="hypothesis">Startup hypothesis</label>
+              <label htmlFor="idea">Startup idea</label>
               <textarea
-                id="hypothesis"
-                name="hypothesis"
+                id="idea"
+                name="idea"
                 rows={5}
-                defaultValue="AI tools for small service businesses that can produce measurable revenue in under 30 days."
-                aria-describedby="hypothesis-help"
+                defaultValue="I want an AI product for small service businesses that helps them make more money quickly."
+                aria-describedby="idea-help"
               />
-              <p id="hypothesis-help">
-                Describe the market, audience, or rough product area you want ProfitHunter to investigate.
-              </p>
+              <p id="idea-help">One short paragraph is enough. No login, no onboarding maze.</p>
             </div>
 
             <div className="field-row">
               <div className="field">
-                <label htmlFor="budget">Experiment budget</label>
-                <input
-                  id="budget"
-                  name="budget"
-                  inputMode="decimal"
-                  defaultValue="25 USDC"
-                  aria-describedby="budget-help"
-                />
-                <p id="budget-help">Used to fund the validation run.</p>
+                <label htmlFor="market">Market</label>
+                <select id="market" name="market" defaultValue="us-eu">
+                  <option value="us-eu">US/EU English-speaking</option>
+                  <option value="serbia">Serbia and Balkans</option>
+                  <option value="global">Global</option>
+                </select>
               </div>
               <div className="field">
-                <label htmlFor="network">Network</label>
-                <select id="network" name="network" defaultValue="devnet">
-                  <option value="devnet">Solana devnet</option>
-                  <option value="testnet">Solana testnet</option>
-                  <option value="mainnet">Solana mainnet</option>
+                <label htmlFor="buyer-type">Buyer type</label>
+                <select id="buyer-type" name="buyer-type" defaultValue="b2b">
+                  <option value="b2b">B2B buyer</option>
+                  <option value="creator">Creator / solo maker</option>
+                  <option value="consumer">Consumer</option>
                 </select>
               </div>
             </div>
 
-            <button className="submit-button" type="submit" disabled={isHunting} aria-busy={isHunting}>
-              {isHunting ? <Loader2 size={18} aria-hidden="true" /> : <CircleDollarSign size={18} aria-hidden="true" />}
-              {isHunting ? "Running profit hunt" : "Hunt for winning product"}
+            <button className="submit-button" type="submit" disabled={isRunning} aria-busy={isRunning}>
+              {isRunning ? <Loader2 size={18} aria-hidden="true" /> : <Radar size={18} aria-hidden="true" />}
+              {isRunning ? "Running agent loop" : "Analyze in 90 seconds"}
             </button>
-            {huntComplete && (
-              <p className="success-note" role="status">
-                <Check size={16} aria-hidden="true" />
-                Winning wedge found: AI Revenue Inbox has the highest first-dollar score.
-              </p>
-            )}
           </form>
 
           <div className="agent-card" aria-live="polite">
             <div className="agent-status">
-              <span className={`status-icon ${huntComplete ? "is-complete" : ""}`}>
-                {huntComplete ? <Check size={18} aria-hidden="true" /> : <Loader2 size={18} aria-hidden="true" />}
+              <span className={`status-icon ${hasRun ? "is-complete" : ""}`}>
+                {isRunning ? <Loader2 size={18} aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
               </span>
               <div>
-                <p>Agent run</p>
-                <strong>
-                  {huntComplete
-                    ? "Winning product selected and ready for payment test"
-                    : "Searching for the fastest path to profit"}
-                </strong>
+                <p>Autonomy proof</p>
+                <strong>{isRunning ? "Agent is choosing the money test" : "Agent rejected the obvious generic chatbot wedge"}</strong>
               </div>
             </div>
-            <ol className="step-list">
-              {validationSteps.map((step, index) => (
-                <li key={step}>
-                  <span>{index + 1}</span>
-                  {step}
+            <ol className="trace-list">
+              {agentSteps.map((step, index) => (
+                <li key={step.label}>
+                  <span className="trace-index">{index + 1}</span>
+                  <div>
+                    <div className="trace-title">
+                      <strong>{step.label}</strong>
+                      <span>{step.confidence}</span>
+                    </div>
+                    <p>{step.detail}</p>
+                    <small>{step.artifact}</small>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -247,95 +253,152 @@ function App() {
         </div>
       </section>
 
-      <section id="score" className="score-section" aria-labelledby="score-title">
+      <section id="results" className="results-section" aria-labelledby="results-title">
         <div className="section-heading compact">
           <p className="eyebrow">
             <Gauge size={16} aria-hidden="true" />
-            Opportunity ranking
+            Verdict, risks, next 48h
           </p>
-          <h2 id="score-title">Profit score favors markets where buyers already spend.</h2>
+          <h2 id="results-title">The answer is operational enough to act on tomorrow.</h2>
         </div>
 
-        <div className="opportunity-list">
-          {opportunities.map((item, index) => (
-            <article className="opportunity-card" key={item.name}>
-              <div className="rank">0{index + 1}</div>
-              <div className="opportunity-main">
-                <div>
-                  <h3>{item.name}</h3>
-                  <p>{item.audience}</p>
-                </div>
-                <p className="insight">{item.insight}</p>
-                <div className="signal-tags">
-                  {item.signals.map((signal) => (
-                    <span key={signal}>{signal}</span>
-                  ))}
-                </div>
+        <div className="results-grid">
+          <article className="verdict-card">
+            <span className="verdict-label">Verdict</span>
+            <h3>Worth testing</h3>
+            <p>
+              The winning wedge is AI Revenue Inbox for boutique agencies because it maps
+              to money already being spent and has a short route to a paid preorder.
+            </p>
+            <div className="decision-box">
+              <strong>Non-obvious agent decision</strong>
+              <p>
+                Do not start with restaurants. Their pain is real, but buyer access and setup
+                friction make them weaker for a 48-hour money test.
+              </p>
+            </div>
+          </article>
+
+          <div className="reason-grid">
+            <SignalPanel
+              title="Top reasons"
+              items={["Existing CRM/proposal spend", "Revenue recovery is urgent", "Buyers reachable via LinkedIn/email"]}
+            />
+            <SignalPanel
+              title="Risks"
+              items={["Outcome claim needs proof", "Crowded AI-sales category", "Requires credible data access"]}
+            />
+            <SignalPanel
+              title="Next 48h"
+              items={["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 1 USDC refundable deposit"]}
+            />
+          </div>
+        </div>
+
+        <div className="experiment-table" aria-label="Ranked product experiments">
+          {experiments.map((experiment) => (
+            <article className="experiment-row" key={experiment.title}>
+              <div>
+                <h3>{experiment.title}</h3>
+                <p>{experiment.buyer}</p>
               </div>
-              <div className="opportunity-metrics">
-                <Metric label="Score" value={item.score.toString()} />
-                <Metric label="Price" value={item.price} />
-                <Metric label="Margin" value={item.margin} />
-              </div>
+              <div className="experiment-reason">{experiment.reason}</div>
+              <ProofStat label="Price" value={experiment.price} />
+              <ProofStat label="Score" value={experiment.score.toString()} />
             </article>
           ))}
         </div>
       </section>
 
-      <section id="payment" className="payment-section" aria-labelledby="payment-title">
+      <section id="proof" className="payment-section" aria-labelledby="payment-title">
         <div className="payment-copy">
           <p className="eyebrow">
-            <LockKeyhole size={16} aria-hidden="true" />
-            Solana payment proof
+            <ShieldCheck size={16} aria-hidden="true" />
+            Payment proof, not a report paywall
           </p>
-          <h2 id="payment-title">Every validation run leaves a payment trail.</h2>
+          <h2 id="payment-title">The buyer pays for the proposed product, not for research.</h2>
           <p>
-            The founder funds a hunt. Buyers can place a preorder or deposit. ProfitHunter
-            uses the receipt as the strongest possible demand signal.
+            In the pitch, the clean proof moment is a small refundable preorder from a real
+            audience member or judge. The transaction is the validation artifact.
           </p>
         </div>
 
         <div className="receipt-card">
+          <div className="receipt-status">
+            <span className={isPaid ? "paid-dot" : "pending-dot"} aria-hidden="true" />
+            {isPaid ? "Buyer deposit confirmed" : "Waiting for signature"}
+          </div>
           <div className="receipt-row">
-            <span>Validation deposit</span>
-            <strong>25.00 USDC</strong>
+            <span>Product preorder</span>
+            <strong>AI Revenue Inbox</strong>
+          </div>
+          <div className="receipt-row">
+            <span>Buyer payment</span>
+            <strong>1.00 USDC</strong>
           </div>
           <div className="receipt-row">
             <span>Network</span>
             <strong>Solana devnet</strong>
           </div>
           <div className="receipt-address">
-            <span>Escrow wallet</span>
-            <button type="button" aria-label="Copy escrow wallet address" onClick={copyAddress}>
+            <span>TX hash</span>
+            <button type="button" aria-label="Copy transaction hash" onClick={copyTx}>
               <Copy size={16} aria-hidden="true" />
-              {copied ? "Copied" : "7xKX...p2aB"}
+              {copied ? "Copied" : txHash}
             </button>
           </div>
+          <button className="submit-button proof-button" type="button" onClick={simulatePayment} disabled={!hasRun}>
+            <Wallet size={18} aria-hidden="true" />
+            Simulate buyer pays 1 USDC
+          </button>
           <a className="explorer-link" href="https://explorer.solana.com/?cluster=devnet" target="_blank" rel="noreferrer">
             Open devnet explorer
             <ExternalLink size={16} aria-hidden="true" />
           </a>
+          <p className="receipt-note">
+            Full report unlocks after the buyer signal, but the money movement is the proof.
+          </p>
+        </div>
+      </section>
+
+      <section className="pitch-section" aria-label="Five minute pitch structure">
+        <div className="pitch-card">
+          <FileText size={20} aria-hidden="true" />
+          <div>
+            <h2>5-minute pitch spine</h2>
+            <p>
+              30s problem, 90s live agent loop, 90s verdict, 60s buyer payment proof,
+              30s why this is impossible without AI.
+            </p>
+          </div>
         </div>
       </section>
     </main>
   );
 }
 
-function Evidence({ label, value }: { label: string; value: string }) {
+function ProofStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="evidence-item">
+    <div className="proof-stat">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function SignalPanel({ title, items }: { title: string; items: string[] }) {
   return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <article className="signal-box">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>
+            <Check size={15} aria-hidden="true" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    </article>
   );
 }
 

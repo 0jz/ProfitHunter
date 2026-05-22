@@ -137,28 +137,17 @@ function App() {
     const idea = String(formData.get("idea") ?? "");
     const market = String(formData.get("market") ?? "");
     const buyerType = String(formData.get("buyer-type") ?? "");
-    const apiKey = String(formData.get("anthropic-key") ?? "").trim();
 
     setApiError("");
     setUsedLiveSearch(false);
     setHasRun(false);
     setIsRunning(true);
 
-    if (!apiKey) {
-      window.setTimeout(() => {
-        setResult(defaultResult);
-        setIsRunning(false);
-        setHasRun(true);
-        setIsPaid(false);
-      }, 1100);
-      return;
-    }
-
     try {
       const response = await fetch("/api/profit-hunt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, idea, market, buyerType }),
+        body: JSON.stringify({ idea, market, buyerType }),
       });
       const payload = await response.json();
 
@@ -325,21 +314,6 @@ function App() {
                   <option value="consumer">Consumer</option>
                 </select>
               </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="anthropic-key">Anthropic API key</label>
-              <input
-                id="anthropic-key"
-                name="anthropic-key"
-                type="password"
-                autoComplete="off"
-                placeholder="sk-ant-api03-..."
-                aria-describedby="anthropic-key-help"
-              />
-              <p id="anthropic-key-help">
-                Optional for demo mode. If provided, it is sent only to the local `/api/profit-hunt` endpoint.
-              </p>
             </div>
 
             <button className="submit-button" type="submit" disabled={isRunning} aria-busy={isRunning}>

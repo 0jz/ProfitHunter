@@ -1,5 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { config as loadEnv } from "dotenv";
+
+loadEnv();
 
 function profitHuntApiPlugin() {
   return {
@@ -15,13 +18,13 @@ function profitHuntApiPlugin() {
 
         try {
           const body = await readJsonBody(request);
-          const apiKey = String(body.apiKey ?? "").trim();
+          const apiKey = String(process.env.ANTHROPIC_API_KEY ?? "").trim();
           const idea = String(body.idea ?? "").trim();
           const market = String(body.market ?? "global").trim();
           const buyerType = String(body.buyerType ?? "b2b").trim();
 
           if (!apiKey) {
-            throw new Error("Anthropic API key is required for live search.");
+            throw new Error("Missing ANTHROPIC_API_KEY in .env.");
           }
 
           if (!idea) {

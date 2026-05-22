@@ -61,82 +61,14 @@ declare global {
   }
 }
 
-const agentSteps: AgentStep[] = [
-  {
-    label: "Extract ICP and value prop",
-    detail: "Detected that the buyer is not 'small business', but service firms losing warm leads.",
-    artifact: "ICP: boutique agencies with 5-30 retainers",
-    confidence: "High",
-  },
-  {
-    label: "Find competitors and spending signals",
-    detail: "Compared CRM, proposal, and lead enrichment tools instead of generic AI assistants.",
-    artifact: "Existing spend: $59-$299/mo per seat",
-    confidence: "High",
-  },
-  {
-    label: "Generate validation experiments",
-    detail: "Rejected a generic chatbot because it has weak urgency and unclear willingness to pay.",
-    artifact: "Experiment: recover quiet leads in 48h",
-    confidence: "Medium",
-  },
-  {
-    label: "Choose the money test",
-    detail: "Selected refundable preorder over survey feedback because payment is the validation event.",
-    artifact: "Buyer deposit: 0.05 SOL on devnet",
-    confidence: "High",
-  },
-];
-
-const experiments: Experiment[] = [
-  {
-    title: "AI Revenue Inbox",
-    buyer: "Boutique agencies",
-    price: "$149/mo",
-    reason: "High existing spend, direct revenue tie, fast outreach list.",
-    score: 91,
-  },
-  {
-    title: "Menu Margin Optimizer",
-    buyer: "Independent restaurants",
-    price: "$79/mo",
-    reason: "Strong ROI, but slower buyer access and more setup work.",
-    score: 78,
-  },
-  {
-    title: "Figma-to-Quote Assistant",
-    buyer: "Freelance designers",
-    price: "$19/report",
-    reason: "Easy to ship, but lower urgency and lower ticket size.",
-    score: 72,
-  },
-];
-
 const PAYMENT_SOL = 0.05;
 const RECIPIENT_WALLET = "7f7Gqo2rCMXSRdeqR7spLkx8vS9U6YLH1KH6xTVBrmEL";
 const DEVNET_EXPLORER = "https://explorer.solana.com";
 
-const defaultResult: HuntResult = {
-  steps: agentSteps,
-  verdict: "Worth testing",
-  winningWedge: "AI Revenue Inbox",
-  improvedIdea: {
-    title: "AI Revenue Inbox",
-    pitch: "A tool for boutique agencies that finds warm leads that went quiet and drafts a 48-hour recovery sequence.",
-    whyBetter: "It sells a direct revenue outcome to buyers who already pay for CRM, proposal, and lead tools.",
-  },
-  topReasons: ["Existing CRM/proposal spend", "Revenue recovery is urgent", "Buyers reachable via LinkedIn/email"],
-  risks: ["Outcome claim needs proof", "Crowded AI-sales category", "Requires credible data access"],
-  next48h: ["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 0.05 SOL refundable deposit"],
-  nonObviousDecision:
-    "Do not start with restaurants. Their pain is real, but buyer access and setup friction make them weaker for a 48-hour money test.",
-  experiments,
-};
-
 function App() {
   const [isRunning, setIsRunning] = useState(false);
-  const [hasRun, setHasRun] = useState(true);
-  const [isPaid, setIsPaid] = useState(true);
+  const [hasRun, setHasRun] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
@@ -146,7 +78,7 @@ function App() {
   const [paymentSignature, setPaymentSignature] = useState("");
   const [apiError, setApiError] = useState("");
   const [usedLiveSearch, setUsedLiveSearch] = useState(false);
-  const [result, setResult] = useState<HuntResult>(defaultResult);
+  const [result, setResult] = useState<HuntResult | null>(null);
 
   async function runAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,6 +91,9 @@ function App() {
     setUsedLiveSearch(false);
     setHasRun(false);
     setIsRunning(true);
+    setResult(null);
+    setPaymentSignature("");
+    setIsPaid(false);
 
     try {
       const response = await fetch("/api/profit-hunt", {
@@ -176,7 +111,6 @@ function App() {
       setUsedLiveSearch(true);
       setIsPaid(false);
     } catch (error) {
-      setResult(defaultResult);
       setApiError(error instanceof Error ? error.message : "Could not run live Anthropic search.");
       setIsPaid(false);
     } finally {
@@ -305,19 +239,19 @@ function App() {
           <div className="summary-header">
             <div>
               <p className="panel-kicker">Current analysis</p>
-              <h2>{result.winningWedge}</h2>
+              <h2>{result?.winningWedge ?? "Ready to analyze"}</h2>
             </div>
             <span className="live-pill">
               <span aria-hidden="true" />
-              {usedLiveSearch ? "Live search" : "Ready"}
+              {isRunning ? "Running" : usedLiveSearch ? "Live search" : "Ready"}
             </span>
           </div>
           <p className="summary-quote">
-            {result.improvedIdea.pitch}
+            {result?.improvedIdea.pitch ?? "Paste a startup idea, choose the market, and ProfitHunter will produce the verdict, trace, improved wedge, and SOL payment step."}
           </p>
           <div className="proof-strip">
-            <ProofStat label="Verdict" value={result.verdict} />
-            <ProofStat label="Winning wedge" value={result.winningWedge.replace(/^AI /, "")} />
+            <ProofStat label="Verdict" value={result?.verdict ?? "Pending"} />
+            <ProofStat label="Winning wedge" value={result ? result.winningWedge.replace(/^AI /, "") : "Pending"} />
             <ProofStat label="Buyer pays" value={`${PAYMENT_SOL} SOL`} />
           </div>
         </div>
@@ -340,7 +274,7 @@ function App() {
                 id="idea"
                 name="idea"
                 rows={5}
-                defaultValue="I want an AI product for small service businesses that helps them make more money quickly."
+                placeholder="Describe your startup idea in 2-5 sentences."
                 aria-describedby="idea-help"
               />
               <p id="idea-help">One short paragraph is enough. No login, no onboarding maze.</p>
@@ -381,28 +315,37 @@ function App() {
                 <strong>
                   {isRunning
                     ? "Agent is choosing the money test"
-                    : isRejectedResult(result.verdict)
+                    : result && isRejectedResult(result.verdict)
                       ? "Agent rewrote the idea into a stronger wedge"
-                      : "Agent selected a payable wedge"}
+                      : result
+                        ? "Agent selected a payable wedge"
+                        : "Run an analysis to generate the trace"}
                 </strong>
               </div>
             </div>
-            {apiError && <p className="api-error" role="status">{apiError} Fallback result is shown instead.</p>}
-            <ol className="trace-list">
-              {result.steps.map((step, index) => (
-                <li key={step.label}>
-                  <span className="trace-index">{index + 1}</span>
-                  <div>
-                    <div className="trace-title">
-                      <strong>{step.label}</strong>
-                      <span className={`confidence-badge confidence-${step.confidence.toLowerCase()}`}>{step.confidence}</span>
+            {apiError && <p className="api-error" role="status">{apiError}</p>}
+            {result ? (
+              <ol className="trace-list">
+                {result.steps.map((step, index) => (
+                  <li key={step.label}>
+                    <span className="trace-index">{index + 1}</span>
+                    <div>
+                      <div className="trace-title">
+                        <strong>{step.label}</strong>
+                        <span className={`confidence-badge confidence-${step.confidence.toLowerCase()}`}>{step.confidence}</span>
+                      </div>
+                      <p>{step.detail}</p>
+                      <small>{step.artifact}</small>
                     </div>
-                    <p>{step.detail}</p>
-                    <small>{step.artifact}</small>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <div className="empty-state">
+                <strong>No trace yet</strong>
+                <p>Run the agent to see extracted signals, market evidence, confidence, and the selected money test.</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -419,32 +362,39 @@ function App() {
         <div className="results-grid">
           <article className="verdict-card">
             <span className="verdict-label">Verdict</span>
-            <h3>{result.verdict}</h3>
-            <p>
-              The winning wedge is {result.winningWedge} because it maps to money already
-              being spent and has a short route to a paid preorder.
-            </p>
-            <div className="decision-box">
-              <strong>Non-obvious agent decision</strong>
-              <p>{result.nonObviousDecision}</p>
-            </div>
-            <div className="decision-box improved-box">
-              <strong>Improved idea that can pass</strong>
-              <h4>{result.improvedIdea.title}</h4>
-              <p>{result.improvedIdea.pitch}</p>
-              <small>{result.improvedIdea.whyBetter}</small>
-            </div>
+            <h3>{result?.verdict ?? "Pending"}</h3>
+            {result ? (
+              <>
+                <p>
+                  The winning wedge is {result.winningWedge} because it maps to money already
+                  being spent and has a short route to a paid preorder.
+                </p>
+                <div className="decision-box">
+                  <strong>Non-obvious agent decision</strong>
+                  <p>{result.nonObviousDecision}</p>
+                </div>
+                <div className="decision-box improved-box">
+                  <strong>Improved idea that can pass</strong>
+                  <h4>{result.improvedIdea.title}</h4>
+                  <p>{result.improvedIdea.pitch}</p>
+                  <small>{result.improvedIdea.whyBetter}</small>
+                </div>
+              </>
+            ) : (
+              <p>Results will appear here after the first analysis.</p>
+            )}
           </article>
 
           <div className="reason-grid">
-            <SignalPanel title="Top reasons" items={result.topReasons} />
-            <SignalPanel title="Risks" items={result.risks} />
-            <SignalPanel title="Next 48h" items={result.next48h} />
+            <SignalPanel title="Top reasons" items={result?.topReasons ?? []} />
+            <SignalPanel title="Risks" items={result?.risks ?? []} />
+            <SignalPanel title="Next 48h" items={result?.next48h ?? []} />
           </div>
         </div>
 
-        <div className="experiment-table" aria-label="Ranked product experiments">
-          {result.experiments.map((experiment) => (
+        {result ? (
+          <div className="experiment-table" aria-label="Ranked product experiments">
+            {result.experiments.map((experiment) => (
             <article className="experiment-row" key={experiment.title}>
               <div>
                 <h3>{experiment.title}</h3>
@@ -454,8 +404,9 @@ function App() {
               <ProofStat label="Price" value={experiment.price} />
               <ProofStat label="Score" value={experiment.score.toString()} />
             </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section id="proof" className="payment-section" aria-labelledby="payment-title">
@@ -478,7 +429,7 @@ function App() {
           </div>
           <div className="receipt-row">
             <span>Product preorder</span>
-            <strong>{result.winningWedge}</strong>
+            <strong>{result?.winningWedge ?? "Run analysis first"}</strong>
           </div>
           <div className="receipt-row">
             <span>Buyer payment</span>
@@ -495,7 +446,7 @@ function App() {
               {copied ? "Copied" : truncateAddress(paymentSignature || RECIPIENT_WALLET)}
             </button>
           </div>
-          <button className="submit-button proof-button" type="button" onClick={payWithSolana} disabled={!hasRun || isPaying}>
+          <button className="submit-button proof-button" type="button" onClick={payWithSolana} disabled={!result || !hasRun || isPaying}>
             {isPaying ? <Loader2 size={18} aria-hidden="true" /> : <Wallet size={18} aria-hidden="true" />}
             {isPaying ? "Confirming on devnet" : `Pay ${PAYMENT_SOL} SOL with Phantom`}
           </button>
@@ -526,14 +477,18 @@ function SignalPanel({ title, items }: { title: string; items: string[] }) {
   return (
     <article className="signal-box">
       <h3>{title}</h3>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>
-            <Check size={15} aria-hidden="true" />
-            {item}
-          </li>
-        ))}
-      </ul>
+      {items.length ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item}>
+              <Check size={15} aria-hidden="true" />
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="panel-empty">Generated after analysis.</p>
+      )}
     </article>
   );
 }
@@ -556,19 +511,59 @@ function isRejectedResult(verdict: string) {
 }
 
 function normalizeResult(value: Partial<HuntResult>): HuntResult {
+  const winningWedge = textOr(value.winningWedge, "Improved product wedge");
+  const improvedIdea = value.improvedIdea?.title
+    ? value.improvedIdea
+    : {
+        title: winningWedge,
+        pitch: "A sharper version of the submitted idea that can be tested with a refundable SOL preorder.",
+        whyBetter: "It focuses on a buyer, a payment event, and a 48-hour validation path.",
+      };
+
   return {
-    ...defaultResult,
-    ...value,
-    steps: Array.isArray(value.steps) && value.steps.length ? value.steps.slice(0, 4) as AgentStep[] : defaultResult.steps,
-    improvedIdea: value.improvedIdea?.title ? value.improvedIdea : defaultResult.improvedIdea,
-    topReasons: Array.isArray(value.topReasons) && value.topReasons.length ? value.topReasons.slice(0, 3) : defaultResult.topReasons,
-    risks: Array.isArray(value.risks) && value.risks.length ? value.risks.slice(0, 3) : defaultResult.risks,
-    next48h: Array.isArray(value.next48h) && value.next48h.length ? value.next48h.slice(0, 3) : defaultResult.next48h,
-    experiments:
-      Array.isArray(value.experiments) && value.experiments.length
-        ? value.experiments.slice(0, 3) as Experiment[]
-        : defaultResult.experiments,
+    verdict: textOr(value.verdict, "Analysis complete"),
+    winningWedge,
+    improvedIdea,
+    nonObviousDecision: textOr(value.nonObviousDecision, "The agent selected the wedge with the clearest path to payment."),
+    steps: normalizeSteps(value.steps),
+    topReasons: normalizeList(value.topReasons),
+    risks: normalizeList(value.risks),
+    next48h: normalizeList(value.next48h),
+    experiments: normalizeExperiments(value.experiments),
   };
+}
+
+function textOr(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function normalizeList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 3) : [];
+}
+
+function normalizeSteps(value: unknown): AgentStep[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 4).map((step, index) => ({
+    label: textOr(step?.label, `Step ${index + 1}`),
+    detail: textOr(step?.detail, "The agent evaluated this part of the opportunity."),
+    artifact: textOr(step?.artifact, "No artifact returned."),
+    confidence: normalizeConfidence(step?.confidence),
+  }));
+}
+
+function normalizeConfidence(value: unknown): AgentStep["confidence"] {
+  return value === "High" || value === "Medium" || value === "Low" ? value : "Medium";
+}
+
+function normalizeExperiments(value: unknown): Experiment[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 3).map((experiment, index) => ({
+    title: textOr(experiment?.title, `Experiment ${index + 1}`),
+    buyer: textOr(experiment?.buyer, "Target buyer"),
+    price: textOr(experiment?.price, `${PAYMENT_SOL} SOL deposit`),
+    reason: textOr(experiment?.reason, "Ranked by payment likelihood."),
+    score: typeof experiment?.score === "number" ? experiment.score : 0,
+  }));
 }
 
 type RootContainer = HTMLElement & {

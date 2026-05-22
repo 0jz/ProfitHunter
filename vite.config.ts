@@ -40,7 +40,7 @@ function profitHuntApiPlugin() {
             },
             body: JSON.stringify({
               model: "claude-sonnet-4-5",
-              max_tokens: 1800,
+              max_tokens: 3200,
               tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
               messages: [
                 {
@@ -91,6 +91,8 @@ Pick the product wedge most likely to collect a small refundable SOL preorder in
 
 If the submitted idea is weak, risky, illegal, too regulated, or unlikely to collect payment, say that clearly in "verdict" using wording like "Weak signal - pivot recommended" or "Do not pursue as written". Then generate an improved idea that could pass the hackathon criteria and make that improved idea the "winningWedge". Do not leave the user with only rejection.
 
+Return raw JSON only. Do not wrap the JSON in markdown fences. Do not add commentary before or after it.
+
 Return exactly this JSON shape:
 {
   "steps": [
@@ -127,9 +129,53 @@ function extractText(payload) {
 
 function parseClaudeJson(text) {
   const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonText = fenced?.[1] ?? trimmed;
+  const withoutFences = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  const jsonText = extractJsonObject(withoutFences);
   return JSON.parse(jsonText);
+}
+
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  if (start === -1) {
+    throw new Error("Claude did not return a JSON object.");
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === "{") depth += 1;
+    if (char === "}") depth -= 1;
+
+    if (depth === 0) {
+      return text.slice(start, index + 1);
+    }
+  }
+
+  throw new Error("Claude returned incomplete JSON.");
 }
 
 export default defineConfig({

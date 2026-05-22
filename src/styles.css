@@ -607,6 +607,19 @@ textarea {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.empty-state {
+  padding: 18px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.empty-state p {
+  margin: 6px 0 0;
+  color: rgb(255 255 255 / 76%);
+  line-height: 1.5;
+}
+
 .verdict-card {
   background: var(--primary-strong);
   color: white;
@@ -683,6 +696,12 @@ textarea {
 .signal-box svg {
   margin-top: 3px;
   color: var(--primary);
+}
+
+.panel-empty {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .experiment-table {

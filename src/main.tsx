@@ -5,7 +5,6 @@ import {
   Check,
   Copy,
   ExternalLink,
-  FileText,
   Gauge,
   Loader2,
   Radar,
@@ -14,13 +13,14 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
+import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import "./styles.css";
 
 type AgentStep = {
   label: string;
   detail: string;
   artifact: string;
-  confidence: "High" | "Medium";
+  confidence: "High" | "Medium" | "Low";
 };
 
 type Experiment = {
@@ -35,6 +35,11 @@ type HuntResult = {
   steps: AgentStep[];
   verdict: string;
   winningWedge: string;
+  improvedIdea: {
+    title: string;
+    pitch: string;
+    whyBetter: string;
+  };
   topReasons: string[];
   risks: string[];
   next48h: string[];
@@ -44,8 +49,10 @@ type HuntResult = {
 
 type SolanaProvider = {
   isPhantom?: boolean;
-  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString: () => string } }>;
+  publicKey?: PublicKey;
+  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: PublicKey }>;
   disconnect?: () => Promise<void>;
+  signAndSendTransaction: (transaction: Transaction) => Promise<{ signature: string }>;
 };
 
 declare global {
@@ -105,12 +112,19 @@ const experiments: Experiment[] = [
   },
 ];
 
-const txHash = "4m5F...9QpD";
+const PAYMENT_SOL = 0.05;
+const RECIPIENT_WALLET = "7f7Gqo2rCMXSRdeqR7spLkx8vS9U6YLH1KH6xTVBrmEL";
+const DEVNET_EXPLORER = "https://explorer.solana.com";
 
 const defaultResult: HuntResult = {
   steps: agentSteps,
   verdict: "Worth testing",
   winningWedge: "AI Revenue Inbox",
+  improvedIdea: {
+    title: "AI Revenue Inbox",
+    pitch: "A tool for boutique agencies that finds warm leads that went quiet and drafts a 48-hour recovery sequence.",
+    whyBetter: "It sells a direct revenue outcome to buyers who already pay for CRM, proposal, and lead tools.",
+  },
   topReasons: ["Existing CRM/proposal spend", "Revenue recovery is urgent", "Buyers reachable via LinkedIn/email"],
   risks: ["Outcome claim needs proof", "Crowded AI-sales category", "Requires credible data access"],
   next48h: ["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 0.05 SOL refundable deposit"],
@@ -127,6 +141,9 @@ function App() {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState("");
   const [walletError, setWalletError] = useState("");
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentSignature, setPaymentSignature] = useState("");
   const [apiError, setApiError] = useState("");
   const [usedLiveSearch, setUsedLiveSearch] = useState(false);
   const [result, setResult] = useState<HuntResult>(defaultResult);
@@ -168,24 +185,16 @@ function App() {
     }
   }
 
-  function simulatePayment() {
-    setIsPaid(false);
-    window.setTimeout(() => setIsPaid(true), 800);
-  }
-
   async function copyTx() {
-    await navigator.clipboard.writeText("4m5FJ2QxDemoDevnetProfitHunter9QpD");
+    await navigator.clipboard.writeText(paymentSignature || RECIPIENT_WALLET);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
   }
 
-  async function toggleWallet() {
+  async function connectWallet() {
     setWalletError("");
     if (isWalletConnected) {
-      await window.solana?.disconnect?.();
-      setIsWalletConnected(false);
-      setWalletAddress("");
-      return;
+      return window.solana?.publicKey ?? null;
     }
 
     const provider = window.solana;
@@ -198,8 +207,48 @@ function App() {
       const response = await provider.connect({ onlyIfTrusted: false });
       setWalletAddress(response.publicKey.toString());
       setIsWalletConnected(true);
+      return response.publicKey;
     } catch {
       setWalletError("Wallet connect je odbijen ili nije uspeo.");
+      return null;
+    }
+  }
+
+  async function payWithSolana() {
+    setPaymentError("");
+    setIsPaying(true);
+
+    try {
+      const provider = window.solana;
+      const payer = await connectWallet();
+      if (!provider || !payer) {
+        throw new Error("Povezi Phantom wallet pre placanja.");
+      }
+
+      const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+      const recipient = new PublicKey(RECIPIENT_WALLET);
+      const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+      const transaction = new Transaction({
+        feePayer: payer,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      }).add(
+        SystemProgram.transfer({
+          fromPubkey: payer,
+          toPubkey: recipient,
+          lamports: Math.round(PAYMENT_SOL * LAMPORTS_PER_SOL),
+        }),
+      );
+
+      const { signature } = await provider.signAndSendTransaction(transaction);
+      await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
+      setPaymentSignature(signature);
+      setIsPaid(true);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Solana transakcija nije uspela.");
+      setIsPaid(false);
+    } finally {
+      setIsPaying(false);
     }
   }
 
@@ -220,8 +269,8 @@ function App() {
         <button
           className={`wallet-button ${isWalletConnected ? "is-connected" : ""}`}
           type="button"
-          aria-label={isWalletConnected ? "Disconnect wallet" : "Connect wallet"}
-          onClick={toggleWallet}
+          aria-label={isWalletConnected ? "Wallet connected" : "Connect wallet"}
+          onClick={connectWallet}
         >
           <Wallet size={17} aria-hidden="true" />
           {isWalletConnected && <span className="wallet-dot" aria-hidden="true" />}
@@ -252,24 +301,24 @@ function App() {
           </div>
         </div>
 
-        <div className="demo-card" aria-label="Hackathon demo proof">
-          <div className="demo-header">
+        <div className="summary-card" aria-label="Current validation summary">
+          <div className="summary-header">
             <div>
-              <p className="panel-kicker">Live demo shape</p>
-              <h2>Idea from audience</h2>
+              <p className="panel-kicker">Current analysis</p>
+              <h2>{result.winningWedge}</h2>
             </div>
             <span className="live-pill">
               <span aria-hidden="true" />
-              90 sec
+              {usedLiveSearch ? "Live search" : "Ready"}
             </span>
           </div>
-          <p className="demo-quote">
-            "AI tools for small service businesses that can create measurable revenue in 30 days."
+          <p className="summary-quote">
+            {result.improvedIdea.pitch}
           </p>
           <div className="proof-strip">
-            <ProofStat label="Verdict" value="Worth testing" />
+            <ProofStat label="Verdict" value={result.verdict} />
             <ProofStat label="Winning wedge" value={result.winningWedge.replace(/^AI /, "")} />
-            <ProofStat label="Buyer paid" value="0.05 SOL" />
+            <ProofStat label="Buyer pays" value={`${PAYMENT_SOL} SOL`} />
           </div>
         </div>
       </section>
@@ -280,7 +329,7 @@ function App() {
             <Search size={16} aria-hidden="true" />
             Paste idea, run agent, inspect trace
           </p>
-          <h2 id="run-title">The demo shows decisions, not just generated text.</h2>
+          <h2 id="run-title">The agent shows decisions, not just generated text.</h2>
         </div>
 
         <div className="workspace-grid">
@@ -329,10 +378,16 @@ function App() {
               </span>
               <div>
                 <p>{usedLiveSearch ? "Live Anthropic search" : "Autonomy proof"}</p>
-                <strong>{isRunning ? "Agent is choosing the money test" : "Agent rejected the obvious generic chatbot wedge"}</strong>
+                <strong>
+                  {isRunning
+                    ? "Agent is choosing the money test"
+                    : isRejectedResult(result.verdict)
+                      ? "Agent rewrote the idea into a stronger wedge"
+                      : "Agent selected a payable wedge"}
+                </strong>
               </div>
             </div>
-            {apiError && <p className="api-error" role="status">{apiError} Demo result is shown instead.</p>}
+            {apiError && <p className="api-error" role="status">{apiError} Fallback result is shown instead.</p>}
             <ol className="trace-list">
               {result.steps.map((step, index) => (
                 <li key={step.label}>
@@ -340,7 +395,7 @@ function App() {
                   <div>
                     <div className="trace-title">
                       <strong>{step.label}</strong>
-                      <span>{step.confidence}</span>
+                      <span className={`confidence-badge confidence-${step.confidence.toLowerCase()}`}>{step.confidence}</span>
                     </div>
                     <p>{step.detail}</p>
                     <small>{step.artifact}</small>
@@ -372,6 +427,12 @@ function App() {
             <div className="decision-box">
               <strong>Non-obvious agent decision</strong>
               <p>{result.nonObviousDecision}</p>
+            </div>
+            <div className="decision-box improved-box">
+              <strong>Improved idea that can pass</strong>
+              <h4>{result.improvedIdea.title}</h4>
+              <p>{result.improvedIdea.pitch}</p>
+              <small>{result.improvedIdea.whyBetter}</small>
             </div>
           </article>
 
@@ -413,7 +474,7 @@ function App() {
         <div className="receipt-card">
           <div className="receipt-status">
             <span className={isPaid ? "paid-dot" : "pending-dot"} aria-hidden="true" />
-            {isPaid ? "Buyer deposit confirmed" : "Waiting for signature"}
+            {isPaid ? "Buyer deposit confirmed" : "Waiting for Phantom signature"}
           </div>
           <div className="receipt-row">
             <span>Product preorder</span>
@@ -421,43 +482,31 @@ function App() {
           </div>
           <div className="receipt-row">
             <span>Buyer payment</span>
-            <strong>0.05 SOL</strong>
+            <strong>{PAYMENT_SOL} SOL</strong>
           </div>
           <div className="receipt-row">
             <span>Network</span>
             <strong>Solana devnet</strong>
           </div>
           <div className="receipt-address">
-            <span>TX hash</span>
+            <span>{paymentSignature ? "TX hash" : "Recipient wallet"}</span>
             <button type="button" aria-label="Copy transaction hash" onClick={copyTx}>
               <Copy size={16} aria-hidden="true" />
-              {copied ? "Copied" : txHash}
+              {copied ? "Copied" : truncateAddress(paymentSignature || RECIPIENT_WALLET)}
             </button>
           </div>
-          <button className="submit-button proof-button" type="button" onClick={simulatePayment} disabled={!hasRun}>
-            <Wallet size={18} aria-hidden="true" />
-            Simulate buyer pays 0.05 SOL
+          <button className="submit-button proof-button" type="button" onClick={payWithSolana} disabled={!hasRun || isPaying}>
+            {isPaying ? <Loader2 size={18} aria-hidden="true" /> : <Wallet size={18} aria-hidden="true" />}
+            {isPaying ? "Confirming on devnet" : `Pay ${PAYMENT_SOL} SOL with Phantom`}
           </button>
-          <a className="explorer-link" href="https://explorer.solana.com/?cluster=devnet" target="_blank" rel="noreferrer">
+          {paymentError && <p className="payment-error" role="status">{paymentError}</p>}
+          <a className="explorer-link" href={explorerUrl(paymentSignature)} target="_blank" rel="noreferrer">
             Open devnet explorer
             <ExternalLink size={16} aria-hidden="true" />
           </a>
           <p className="receipt-note">
-            Full report unlocks after the buyer signal, but the money movement is the proof.
+            Sends devnet SOL to {truncateAddress(RECIPIENT_WALLET)} as the validation deposit.
           </p>
-        </div>
-      </section>
-
-      <section className="pitch-section" aria-label="Five minute pitch structure">
-        <div className="pitch-card">
-          <FileText size={20} aria-hidden="true" />
-          <div>
-            <h2>5-minute pitch spine</h2>
-            <p>
-              30s problem, 90s live agent loop, 90s verdict, 60s buyer payment proof,
-              30s why this is impossible without AI.
-            </p>
-          </div>
         </div>
       </section>
     </main>
@@ -495,11 +544,23 @@ function truncateAddress(address: string, chars = 4) {
   return `${address.slice(0, chars)}...${address.slice(-chars)}`;
 }
 
+function explorerUrl(signature: string) {
+  return signature
+    ? `${DEVNET_EXPLORER}/tx/${signature}?cluster=devnet`
+    : `${DEVNET_EXPLORER}/address/${RECIPIENT_WALLET}?cluster=devnet`;
+}
+
+function isRejectedResult(verdict: string) {
+  const normalized = verdict.toLowerCase();
+  return normalized.includes("weak") || normalized.includes("reject") || normalized.includes("don't") || normalized.includes("pivot");
+}
+
 function normalizeResult(value: Partial<HuntResult>): HuntResult {
   return {
     ...defaultResult,
     ...value,
     steps: Array.isArray(value.steps) && value.steps.length ? value.steps.slice(0, 4) as AgentStep[] : defaultResult.steps,
+    improvedIdea: value.improvedIdea?.title ? value.improvedIdea : defaultResult.improvedIdea,
     topReasons: Array.isArray(value.topReasons) && value.topReasons.length ? value.topReasons.slice(0, 3) : defaultResult.topReasons,
     risks: Array.isArray(value.risks) && value.risks.length ? value.risks.slice(0, 3) : defaultResult.risks,
     next48h: Array.isArray(value.next48h) && value.next48h.length ? value.next48h.slice(0, 3) : defaultResult.next48h,

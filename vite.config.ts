@@ -81,13 +81,15 @@ async function readJsonBody(request) {
 }
 
 function buildProfitHuntPrompt({ idea, market, buyerType }) {
-  return `You are ProfitHunter, a hackathon demo agent. Use web search to research the market for this startup idea, then return ONLY valid JSON.
+  return `You are ProfitHunter, a hackathon validation agent. Use web search to research the market for this startup idea, then return ONLY valid JSON.
 
 Startup idea: ${idea}
 Market: ${market}
 Buyer type: ${buyerType}
 
 Pick the product wedge most likely to collect a small refundable SOL preorder in 48 hours. Prefer proof of existing spend, reachable buyers, strong pain, and fast fulfillment. Avoid generic optimism.
+
+If the submitted idea is weak, risky, illegal, too regulated, or unlikely to collect payment, say that clearly in "verdict" using wording like "Weak signal - pivot recommended" or "Do not pursue as written". Then generate an improved idea that could pass the hackathon criteria and make that improved idea the "winningWedge". Do not leave the user with only rejection.
 
 Return exactly this JSON shape:
 {
@@ -97,8 +99,13 @@ Return exactly this JSON shape:
     {"label": "Generate validation experiments", "detail": "...", "artifact": "...", "confidence": "Medium"},
     {"label": "Choose the money test", "detail": "...", "artifact": "Buyer deposit: 0.05 SOL on devnet", "confidence": "High"}
   ],
-  "verdict": "Worth testing",
-  "winningWedge": "short product name",
+  "verdict": "Worth testing OR Weak signal - pivot recommended OR Do not pursue as written",
+  "winningWedge": "short improved product name",
+  "improvedIdea": {
+    "title": "short improved idea name",
+    "pitch": "one-sentence product pitch that could collect a 0.05 SOL preorder",
+    "whyBetter": "why this is more likely to pass than the original idea"
+  },
   "topReasons": ["reason 1", "reason 2", "reason 3"],
   "risks": ["risk 1", "risk 2", "risk 3"],
   "next48h": ["task 1", "task 2", "Collect 0.05 SOL refundable deposit"],

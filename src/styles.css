@@ -97,6 +97,11 @@ h3 {
   font-size: 1.08rem;
 }
 
+h4 {
+  margin: 8px 0;
+  font-size: 1rem;
+}
+
 .app-shell {
   width: min(100%, 1280px);
   margin: 0 auto;
@@ -226,7 +231,7 @@ h3 {
 .hero-lede,
 .payment-copy p,
 .section-heading,
-.demo-quote,
+.summary-quote,
 .verdict-card p,
 .experiment-row p,
 .decision-box p {
@@ -281,7 +286,7 @@ h3 {
   transform: translateY(-1px);
 }
 
-.demo-card,
+.summary-card,
 .hunt-form,
 .agent-card,
 .verdict-card,
@@ -294,12 +299,12 @@ h3 {
   background: var(--panel);
 }
 
-.demo-card {
+.summary-card {
   padding: clamp(20px, 4vw, 32px);
   box-shadow: var(--shadow);
 }
 
-.demo-header,
+.summary-header,
 .agent-status,
 .trace-title,
 .receipt-row,
@@ -320,7 +325,7 @@ h3 {
   text-transform: uppercase;
 }
 
-.demo-header h2 {
+.summary-header h2 {
   margin: 0;
   font-size: 1.35rem;
   line-height: 1.15;
@@ -355,7 +360,7 @@ h3 {
   background: var(--warning);
 }
 
-.demo-quote {
+.summary-quote {
   margin: 24px 0;
   padding: 18px;
   border-left: 4px solid var(--accent);
@@ -471,7 +476,8 @@ textarea {
 }
 
 .top-error,
-.api-error {
+.api-error,
+.payment-error {
   margin: 0 0 12px;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border));
@@ -487,6 +493,10 @@ textarea {
   margin: 0 0 18px;
   background: rgb(255 255 255 / 12%);
   color: white;
+}
+
+.payment-error {
+  margin: 12px 0 0;
 }
 
 .submit-button {
@@ -570,6 +580,21 @@ textarea {
   font-weight: 900;
 }
 
+.confidence-high {
+  background: rgb(22 130 83 / 24%) !important;
+  color: #d9fff0 !important;
+}
+
+.confidence-medium {
+  background: rgb(255 255 255 / 14%) !important;
+  color: rgb(255 255 255 / 82%) !important;
+}
+
+.confidence-low {
+  background: rgb(182 76 47 / 30%) !important;
+  color: #ffe4dc !important;
+}
+
 .trace-list p {
   margin: 6px 0;
   color: rgb(255 255 255 / 82%);
@@ -617,6 +642,18 @@ textarea {
 
 .decision-box p {
   margin-bottom: 0;
+}
+
+.improved-box {
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: rgb(255 255 255 / 14%);
+}
+
+.improved-box small {
+  display: block;
+  margin-top: 10px;
+  color: rgb(255 255 255 / 72%);
+  line-height: 1.45;
 }
 
 .reason-grid {
@@ -848,7 +885,7 @@ textarea {
     width: 100%;
   }
 
-  .demo-header,
+  .summary-header,
   .trace-title,
   .receipt-address {
     align-items: flex-start;

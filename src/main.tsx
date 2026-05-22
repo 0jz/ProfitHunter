@@ -21,6 +21,8 @@ type AgentStep = {
   detail: string;
   artifact: string;
   confidence: "High" | "Medium" | "Low";
+  confidenceScore: number;
+  confidenceReason: string;
 };
 
 type Experiment = {
@@ -40,6 +42,11 @@ type HuntResult = {
     pitch: string;
     whyBetter: string;
   };
+  primaryChannel: string;
+  offer: string;
+  price: string;
+  reason: string;
+  paymentPurpose: string;
   topReasons: string[];
   risks: string[];
   next48h: string[];
@@ -84,6 +91,8 @@ function App() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const idea = String(formData.get("idea") ?? "");
+    const targetCustomer = String(formData.get("target-customer") ?? "");
+    const priceGuess = String(formData.get("price-guess") ?? "");
     const market = String(formData.get("market") ?? "");
     const buyerType = String(formData.get("buyer-type") ?? "");
 
@@ -99,7 +108,7 @@ function App() {
       const response = await fetch("/api/profit-hunt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, market, buyerType }),
+        body: JSON.stringify({ idea, targetCustomer, priceGuess, market, buyerType }),
       });
       const payload = await response.json();
 
@@ -197,8 +206,8 @@ function App() {
         </a>
         <nav className="nav-links" aria-label="Sections">
           <a href="#run">Agent loop</a>
-          <a href="#results">Verdict</a>
           <a href="#proof">Payment proof</a>
+          <a href="#results">Outputs</a>
         </nav>
         <button
           className={`wallet-button ${isWalletConnected ? "is-connected" : ""}`}
@@ -282,6 +291,29 @@ function App() {
 
             <div className="field-row">
               <div className="field">
+                <label htmlFor="target-customer">Target customer</label>
+                <input
+                  id="target-customer"
+                  name="target-customer"
+                  placeholder="Who should pay first?"
+                  aria-describedby="target-customer-help"
+                />
+                <p id="target-customer-help">Optional, but improves ICP extraction.</p>
+              </div>
+              <div className="field">
+                <label htmlFor="price-guess">Price guess</label>
+                <input
+                  id="price-guess"
+                  name="price-guess"
+                  placeholder="$29/mo or 0.05 SOL deposit"
+                  aria-describedby="price-guess-help"
+                />
+                <p id="price-guess-help">Optional anchor for monetization scoring.</p>
+              </div>
+            </div>
+
+            <div className="field-row">
+              <div className="field">
                 <label htmlFor="market">Market</label>
                 <select id="market" name="market" defaultValue="us-eu">
                   <option value="us-eu">US/EU English-speaking</option>
@@ -332,10 +364,13 @@ function App() {
                     <div>
                       <div className="trace-title">
                         <strong>{step.label}</strong>
-                        <span className={`confidence-badge confidence-${step.confidence.toLowerCase()}`}>{step.confidence}</span>
+                        <span className={`confidence-badge confidence-${step.confidence.toLowerCase()}`}>
+                          {step.confidenceScore}/100 {step.confidence}
+                        </span>
                       </div>
                       <p>{step.detail}</p>
                       <small>{step.artifact}</small>
+                      <small>{step.confidenceReason}</small>
                     </div>
                   </li>
                 ))}
@@ -350,75 +385,15 @@ function App() {
         </div>
       </section>
 
-      <section id="results" className="results-section" aria-labelledby="results-title">
-        <div className="section-heading compact">
-          <p className="eyebrow">
-            <Gauge size={16} aria-hidden="true" />
-            Verdict, risks, next 48h
-          </p>
-          <h2 id="results-title">The answer is operational enough to act on tomorrow.</h2>
-        </div>
-
-        <div className="results-grid">
-          <article className="verdict-card">
-            <span className="verdict-label">Verdict</span>
-            <h3>{result?.verdict ?? "Pending"}</h3>
-            {result ? (
-              <>
-                <p>
-                  The winning wedge is {result.winningWedge} because it maps to money already
-                  being spent and has a short route to a paid preorder.
-                </p>
-                <div className="decision-box">
-                  <strong>Non-obvious agent decision</strong>
-                  <p>{result.nonObviousDecision}</p>
-                </div>
-                <div className="decision-box improved-box">
-                  <strong>Improved idea that can pass</strong>
-                  <h4>{result.improvedIdea.title}</h4>
-                  <p>{result.improvedIdea.pitch}</p>
-                  <small>{result.improvedIdea.whyBetter}</small>
-                </div>
-              </>
-            ) : (
-              <p>Results will appear here after the first analysis.</p>
-            )}
-          </article>
-
-          <div className="reason-grid">
-            <SignalPanel title="Top reasons" items={result?.topReasons ?? []} />
-            <SignalPanel title="Risks" items={result?.risks ?? []} />
-            <SignalPanel title="Next 48h" items={result?.next48h ?? []} />
-          </div>
-        </div>
-
-        {result ? (
-          <div className="experiment-table" aria-label="Ranked product experiments">
-            {result.experiments.map((experiment) => (
-            <article className="experiment-row" key={experiment.title}>
-              <div>
-                <h3>{experiment.title}</h3>
-                <p>{experiment.buyer}</p>
-              </div>
-              <div className="experiment-reason">{experiment.reason}</div>
-              <ProofStat label="Price" value={experiment.price} />
-              <ProofStat label="Score" value={experiment.score.toString()} />
-            </article>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
       <section id="proof" className="payment-section" aria-labelledby="payment-title">
         <div className="payment-copy">
           <p className="eyebrow">
             <ShieldCheck size={16} aria-hidden="true" />
-            Payment proof, not a report paywall
+            Payment proof
           </p>
-          <h2 id="payment-title">The buyer pays for the proposed product, not for research.</h2>
+          <h2 id="payment-title">Pay the validation deposit to unlock the full output.</h2>
           <p>
-            In the pitch, the clean proof moment is a small refundable preorder from a real
-            audience member or judge. The transaction is the validation artifact.
+            Goal: {result?.paymentPurpose ?? "prove that the proposed offer can move money, not just generate interest."}
           </p>
         </div>
 
@@ -446,9 +421,9 @@ function App() {
               {copied ? "Copied" : truncateAddress(paymentSignature || RECIPIENT_WALLET)}
             </button>
           </div>
-          <button className="submit-button proof-button" type="button" onClick={payWithSolana} disabled={!result || !hasRun || isPaying}>
+          <button className="submit-button proof-button" type="button" onClick={payWithSolana} disabled={!result || !hasRun || isPaying || isPaid}>
             {isPaying ? <Loader2 size={18} aria-hidden="true" /> : <Wallet size={18} aria-hidden="true" />}
-            {isPaying ? "Confirming on devnet" : `Pay ${PAYMENT_SOL} SOL with Phantom`}
+            {isPaid ? "Full output unlocked" : isPaying ? "Confirming on devnet" : `Pay ${PAYMENT_SOL} SOL with Phantom`}
           </button>
           {paymentError && <p className="payment-error" role="status">{paymentError}</p>}
           <a className="explorer-link" href={explorerUrl(paymentSignature)} target="_blank" rel="noreferrer">
@@ -459,6 +434,83 @@ function App() {
             Sends devnet SOL to {truncateAddress(RECIPIENT_WALLET)} as the validation deposit.
           </p>
         </div>
+      </section>
+
+      <section id="results" className="results-section" aria-labelledby="results-title">
+        <div className="section-heading compact">
+          <p className="eyebrow">
+            <Gauge size={16} aria-hidden="true" />
+            Unlocked outputs
+          </p>
+          <h2 id="results-title">Channel, offer, price, and next actions.</h2>
+        </div>
+
+        {!isPaid ? (
+          <div className="locked-output">
+            <ShieldCheck size={22} aria-hidden="true" />
+            <div>
+              <h3>Full output locked</h3>
+              <p>Run the analysis and complete the {PAYMENT_SOL} SOL validation deposit to reveal the offer, primary channel, pricing reason, risks, and experiments.</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="results-grid">
+              <article className="verdict-card">
+                <span className="verdict-label">Verdict</span>
+                <h3>{result?.verdict ?? "Pending"}</h3>
+                {result ? (
+                  <>
+                    <p>
+                      The winning wedge is {result.winningWedge} because it maps to money already
+                      being spent and has a short route to a paid preorder.
+                    </p>
+                    <div className="decision-box output-grid">
+                      <ProofStat label="Primary channel" value={result.primaryChannel} />
+                      <ProofStat label="Offer" value={result.offer} />
+                      <ProofStat label="Price" value={result.price} />
+                      <ProofStat label="Why this price" value={result.reason} />
+                    </div>
+                    <div className="decision-box">
+                      <strong>Non-obvious agent decision</strong>
+                      <p>{result.nonObviousDecision}</p>
+                    </div>
+                    <div className="decision-box improved-box">
+                      <strong>Improved idea that can pass</strong>
+                      <h4>{result.improvedIdea.title}</h4>
+                      <p>{result.improvedIdea.pitch}</p>
+                      <small>{result.improvedIdea.whyBetter}</small>
+                    </div>
+                  </>
+                ) : (
+                  <p>Results will appear here after the first analysis.</p>
+                )}
+              </article>
+
+              <div className="reason-grid">
+                <SignalPanel title="Top reasons" items={result?.topReasons ?? []} />
+                <SignalPanel title="Risks" items={result?.risks ?? []} />
+                <SignalPanel title="Next 48h" items={result?.next48h ?? []} />
+              </div>
+            </div>
+
+            {result ? (
+              <div className="experiment-table" aria-label="Ranked product experiments">
+                {result.experiments.map((experiment) => (
+                <article className="experiment-row" key={experiment.title}>
+                  <div>
+                    <h3>{experiment.title}</h3>
+                    <p>{experiment.buyer}</p>
+                  </div>
+                  <div className="experiment-reason">{experiment.reason}</div>
+                  <ProofStat label="Price" value={experiment.price} />
+                  <ProofStat label="Monetization score" value={`${experiment.score}/100`} />
+                </article>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </main>
   );
@@ -524,6 +576,11 @@ function normalizeResult(value: Partial<HuntResult>): HuntResult {
     verdict: textOr(value.verdict, "Analysis complete"),
     winningWedge,
     improvedIdea,
+    primaryChannel: textOr(value.primaryChannel, "Primary channel pending"),
+    offer: textOr(value.offer, "Offer pending"),
+    price: textOr(value.price, `${PAYMENT_SOL} SOL refundable deposit`),
+    reason: textOr(value.reason, "Price should be based on buyer urgency, comparable spend, and friction to test."),
+    paymentPurpose: textOr(value.paymentPurpose, "prove that the proposed offer can move money, not just generate interest."),
     nonObviousDecision: textOr(value.nonObviousDecision, "The agent selected the wedge with the clearest path to payment."),
     steps: normalizeSteps(value.steps),
     topReasons: normalizeList(value.topReasons),
@@ -548,6 +605,8 @@ function normalizeSteps(value: unknown): AgentStep[] {
     detail: textOr(step?.detail, "The agent evaluated this part of the opportunity."),
     artifact: textOr(step?.artifact, "No artifact returned."),
     confidence: normalizeConfidence(step?.confidence),
+    confidenceScore: normalizeScore(step?.confidenceScore),
+    confidenceReason: textOr(step?.confidenceReason, "Confidence is based on available market evidence and source quality."),
   }));
 }
 
@@ -564,6 +623,12 @@ function normalizeExperiments(value: unknown): Experiment[] {
     reason: textOr(experiment?.reason, "Ranked by payment likelihood."),
     score: typeof experiment?.score === "number" ? experiment.score : 0,
   }));
+}
+
+function normalizeScore(value: unknown) {
+  const score = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(score)) return 50;
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 type RootContainer = HTMLElement & {

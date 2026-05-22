@@ -657,6 +657,22 @@ textarea {
   margin-bottom: 0;
 }
 
+.output-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.output-grid .proof-stat {
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(255 255 255 / 14%);
+}
+
+.output-grid .proof-stat span,
+.output-grid .proof-stat strong {
+  color: white;
+}
+
 .improved-box {
   border: 1px solid rgb(255 255 255 / 14%);
   background: rgb(255 255 255 / 14%);
@@ -702,6 +718,27 @@ textarea {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.locked-output {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.locked-output svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.locked-output p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
 }
 
 .experiment-table {

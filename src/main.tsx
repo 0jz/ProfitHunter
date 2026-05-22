@@ -53,7 +53,7 @@ const agentSteps: AgentStep[] = [
   {
     label: "Choose the money test",
     detail: "Selected refundable preorder over survey feedback because payment is the validation event.",
-    artifact: "Buyer deposit: 1.00 USDC on devnet",
+    artifact: "Buyer deposit: 0.05 SOL on devnet",
     confidence: "High",
   },
 ];
@@ -89,6 +89,7 @@ function App() {
   const [hasRun, setHasRun] = useState(true);
   const [isPaid, setIsPaid] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
 
   function runAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -126,9 +127,15 @@ function App() {
           <a href="#results">Verdict</a>
           <a href="#proof">Payment proof</a>
         </nav>
-        <button className="wallet-button" type="button">
+        <button
+          className={`wallet-button ${isWalletConnected ? "is-connected" : ""}`}
+          type="button"
+          aria-label={isWalletConnected ? "Disconnect wallet" : "Connect wallet"}
+          onClick={() => setIsWalletConnected((connected) => !connected)}
+        >
           <Wallet size={17} aria-hidden="true" />
-          <span>Devnet ready</span>
+          {isWalletConnected && <span className="wallet-dot" aria-hidden="true" />}
+          <span>{isWalletConnected ? "7xKX...p2aB" : "Connect wallet"}</span>
         </button>
       </header>
 
@@ -171,7 +178,7 @@ function App() {
           <div className="proof-strip">
             <ProofStat label="Verdict" value="Worth testing" />
             <ProofStat label="Winning wedge" value="Revenue Inbox" />
-            <ProofStat label="Buyer paid" value="1 USDC" />
+            <ProofStat label="Buyer paid" value="0.05 SOL" />
           </div>
         </div>
       </section>
@@ -290,7 +297,7 @@ function App() {
             />
             <SignalPanel
               title="Next 48h"
-              items={["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 1 USDC refundable deposit"]}
+              items={["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 0.05 SOL refundable deposit"]}
             />
           </div>
         </div>
@@ -334,7 +341,7 @@ function App() {
           </div>
           <div className="receipt-row">
             <span>Buyer payment</span>
-            <strong>1.00 USDC</strong>
+            <strong>0.05 SOL</strong>
           </div>
           <div className="receipt-row">
             <span>Network</span>
@@ -349,7 +356,7 @@ function App() {
           </div>
           <button className="submit-button proof-button" type="button" onClick={simulatePayment} disabled={!hasRun}>
             <Wallet size={18} aria-hidden="true" />
-            Simulate buyer pays 1 USDC
+            Simulate buyer pays 0.05 SOL
           </button>
           <a className="explorer-link" href="https://explorer.solana.com/?cluster=devnet" target="_blank" rel="noreferrer">
             Open devnet explorer

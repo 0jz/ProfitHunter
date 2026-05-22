@@ -184,6 +184,20 @@ h3 {
   cursor: pointer;
 }
 
+.wallet-button.is-connected {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.wallet-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
 .hero-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.74fr);

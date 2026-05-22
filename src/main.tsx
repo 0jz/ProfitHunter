@@ -31,6 +31,29 @@ type Experiment = {
   score: number;
 };
 
+type HuntResult = {
+  steps: AgentStep[];
+  verdict: string;
+  winningWedge: string;
+  topReasons: string[];
+  risks: string[];
+  next48h: string[];
+  nonObviousDecision: string;
+  experiments: Experiment[];
+};
+
+type SolanaProvider = {
+  isPhantom?: boolean;
+  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString: () => string } }>;
+  disconnect?: () => Promise<void>;
+};
+
+declare global {
+  interface Window {
+    solana?: SolanaProvider;
+  }
+}
+
 const agentSteps: AgentStep[] = [
   {
     label: "Extract ICP and value prop",
@@ -84,22 +107,76 @@ const experiments: Experiment[] = [
 
 const txHash = "4m5F...9QpD";
 
+const defaultResult: HuntResult = {
+  steps: agentSteps,
+  verdict: "Worth testing",
+  winningWedge: "AI Revenue Inbox",
+  topReasons: ["Existing CRM/proposal spend", "Revenue recovery is urgent", "Buyers reachable via LinkedIn/email"],
+  risks: ["Outcome claim needs proof", "Crowded AI-sales category", "Requires credible data access"],
+  next48h: ["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 0.05 SOL refundable deposit"],
+  nonObviousDecision:
+    "Do not start with restaurants. Their pain is real, but buyer access and setup friction make them weaker for a 48-hour money test.",
+  experiments,
+};
+
 function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [hasRun, setHasRun] = useState(true);
   const [isPaid, setIsPaid] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [walletError, setWalletError] = useState("");
+  const [apiError, setApiError] = useState("");
+  const [usedLiveSearch, setUsedLiveSearch] = useState(false);
+  const [result, setResult] = useState<HuntResult>(defaultResult);
 
-  function runAgent(event: FormEvent<HTMLFormElement>) {
+  async function runAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const idea = String(formData.get("idea") ?? "");
+    const market = String(formData.get("market") ?? "");
+    const buyerType = String(formData.get("buyer-type") ?? "");
+    const apiKey = String(formData.get("anthropic-key") ?? "").trim();
+
+    setApiError("");
+    setUsedLiveSearch(false);
     setHasRun(false);
     setIsRunning(true);
-    window.setTimeout(() => {
+
+    if (!apiKey) {
+      window.setTimeout(() => {
+        setResult(defaultResult);
+        setIsRunning(false);
+        setHasRun(true);
+        setIsPaid(false);
+      }, 1100);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/profit-hunt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, idea, market, buyerType }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Anthropic search failed.");
+      }
+
+      setResult(normalizeResult(payload.result));
+      setUsedLiveSearch(true);
+      setIsPaid(false);
+    } catch (error) {
+      setResult(defaultResult);
+      setApiError(error instanceof Error ? error.message : "Could not run live Anthropic search.");
+      setIsPaid(false);
+    } finally {
       setIsRunning(false);
       setHasRun(true);
-      setIsPaid(false);
-    }, 1100);
+    }
   }
 
   function simulatePayment() {
@@ -111,6 +188,30 @@ function App() {
     await navigator.clipboard.writeText("4m5FJ2QxDemoDevnetProfitHunter9QpD");
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  async function toggleWallet() {
+    setWalletError("");
+    if (isWalletConnected) {
+      await window.solana?.disconnect?.();
+      setIsWalletConnected(false);
+      setWalletAddress("");
+      return;
+    }
+
+    const provider = window.solana;
+    if (!provider?.isPhantom) {
+      setWalletError("Phantom nije pronadjen. Instaliraj Phantom ekstenziju ili otvori app u browseru gde je wallet aktivan.");
+      return;
+    }
+
+    try {
+      const response = await provider.connect({ onlyIfTrusted: false });
+      setWalletAddress(response.publicKey.toString());
+      setIsWalletConnected(true);
+    } catch {
+      setWalletError("Wallet connect je odbijen ili nije uspeo.");
+    }
   }
 
   return (
@@ -131,13 +232,14 @@ function App() {
           className={`wallet-button ${isWalletConnected ? "is-connected" : ""}`}
           type="button"
           aria-label={isWalletConnected ? "Disconnect wallet" : "Connect wallet"}
-          onClick={() => setIsWalletConnected((connected) => !connected)}
+          onClick={toggleWallet}
         >
           <Wallet size={17} aria-hidden="true" />
           {isWalletConnected && <span className="wallet-dot" aria-hidden="true" />}
-          <span>{isWalletConnected ? "7xKX...p2aB" : "Connect wallet"}</span>
+          <span>{isWalletConnected ? truncateAddress(walletAddress) : "Connect wallet"}</span>
         </button>
       </header>
+      {walletError && <p className="top-error" role="status">{walletError}</p>}
 
       <section id="top" className="hero-section">
         <div className="hero-copy">
@@ -177,7 +279,7 @@ function App() {
           </p>
           <div className="proof-strip">
             <ProofStat label="Verdict" value="Worth testing" />
-            <ProofStat label="Winning wedge" value="Revenue Inbox" />
+            <ProofStat label="Winning wedge" value={result.winningWedge.replace(/^AI /, "")} />
             <ProofStat label="Buyer paid" value="0.05 SOL" />
           </div>
         </div>
@@ -225,6 +327,21 @@ function App() {
               </div>
             </div>
 
+            <div className="field">
+              <label htmlFor="anthropic-key">Anthropic API key</label>
+              <input
+                id="anthropic-key"
+                name="anthropic-key"
+                type="password"
+                autoComplete="off"
+                placeholder="sk-ant-api03-..."
+                aria-describedby="anthropic-key-help"
+              />
+              <p id="anthropic-key-help">
+                Optional for demo mode. If provided, it is sent only to the local `/api/profit-hunt` endpoint.
+              </p>
+            </div>
+
             <button className="submit-button" type="submit" disabled={isRunning} aria-busy={isRunning}>
               {isRunning ? <Loader2 size={18} aria-hidden="true" /> : <Radar size={18} aria-hidden="true" />}
               {isRunning ? "Running agent loop" : "Analyze in 90 seconds"}
@@ -237,12 +354,13 @@ function App() {
                 {isRunning ? <Loader2 size={18} aria-hidden="true" /> : <Check size={18} aria-hidden="true" />}
               </span>
               <div>
-                <p>Autonomy proof</p>
+                <p>{usedLiveSearch ? "Live Anthropic search" : "Autonomy proof"}</p>
                 <strong>{isRunning ? "Agent is choosing the money test" : "Agent rejected the obvious generic chatbot wedge"}</strong>
               </div>
             </div>
+            {apiError && <p className="api-error" role="status">{apiError} Demo result is shown instead.</p>}
             <ol className="trace-list">
-              {agentSteps.map((step, index) => (
+              {result.steps.map((step, index) => (
                 <li key={step.label}>
                   <span className="trace-index">{index + 1}</span>
                   <div>
@@ -272,38 +390,26 @@ function App() {
         <div className="results-grid">
           <article className="verdict-card">
             <span className="verdict-label">Verdict</span>
-            <h3>Worth testing</h3>
+            <h3>{result.verdict}</h3>
             <p>
-              The winning wedge is AI Revenue Inbox for boutique agencies because it maps
-              to money already being spent and has a short route to a paid preorder.
+              The winning wedge is {result.winningWedge} because it maps to money already
+              being spent and has a short route to a paid preorder.
             </p>
             <div className="decision-box">
               <strong>Non-obvious agent decision</strong>
-              <p>
-                Do not start with restaurants. Their pain is real, but buyer access and setup
-                friction make them weaker for a 48-hour money test.
-              </p>
+              <p>{result.nonObviousDecision}</p>
             </div>
           </article>
 
           <div className="reason-grid">
-            <SignalPanel
-              title="Top reasons"
-              items={["Existing CRM/proposal spend", "Revenue recovery is urgent", "Buyers reachable via LinkedIn/email"]}
-            />
-            <SignalPanel
-              title="Risks"
-              items={["Outcome claim needs proof", "Crowded AI-sales category", "Requires credible data access"]}
-            />
-            <SignalPanel
-              title="Next 48h"
-              items={["Build one landing page", "Ask 30 agency owners for a preorder", "Collect 0.05 SOL refundable deposit"]}
-            />
+            <SignalPanel title="Top reasons" items={result.topReasons} />
+            <SignalPanel title="Risks" items={result.risks} />
+            <SignalPanel title="Next 48h" items={result.next48h} />
           </div>
         </div>
 
         <div className="experiment-table" aria-label="Ranked product experiments">
-          {experiments.map((experiment) => (
+          {result.experiments.map((experiment) => (
             <article className="experiment-row" key={experiment.title}>
               <div>
                 <h3>{experiment.title}</h3>
@@ -337,7 +443,7 @@ function App() {
           </div>
           <div className="receipt-row">
             <span>Product preorder</span>
-            <strong>AI Revenue Inbox</strong>
+            <strong>{result.winningWedge}</strong>
           </div>
           <div className="receipt-row">
             <span>Buyer payment</span>
@@ -407,6 +513,27 @@ function SignalPanel({ title, items }: { title: string; items: string[] }) {
       </ul>
     </article>
   );
+}
+
+function truncateAddress(address: string, chars = 4) {
+  if (!address) return "Connected";
+  if (address.length <= chars * 2 + 3) return address;
+  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+}
+
+function normalizeResult(value: Partial<HuntResult>): HuntResult {
+  return {
+    ...defaultResult,
+    ...value,
+    steps: Array.isArray(value.steps) && value.steps.length ? value.steps.slice(0, 4) as AgentStep[] : defaultResult.steps,
+    topReasons: Array.isArray(value.topReasons) && value.topReasons.length ? value.topReasons.slice(0, 3) : defaultResult.topReasons,
+    risks: Array.isArray(value.risks) && value.risks.length ? value.risks.slice(0, 3) : defaultResult.risks,
+    next48h: Array.isArray(value.next48h) && value.next48h.length ? value.next48h.slice(0, 3) : defaultResult.next48h,
+    experiments:
+      Array.isArray(value.experiments) && value.experiments.length
+        ? value.experiments.slice(0, 3) as Experiment[]
+        : defaultResult.experiments,
+  };
 }
 
 type RootContainer = HTMLElement & {

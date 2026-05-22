@@ -447,6 +447,7 @@ label {
 }
 
 textarea,
+input,
 select {
   width: 100%;
   min-height: 48px;
@@ -467,6 +468,25 @@ textarea {
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.45;
+}
+
+.top-error,
+.api-error {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 38%, var(--border));
+  border-radius: 8px;
+  background: #fff7df;
+  color: #5f3f00;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.api-error {
+  margin: 0 0 18px;
+  background: rgb(255 255 255 / 12%);
+  color: white;
 }
 
 .submit-button {

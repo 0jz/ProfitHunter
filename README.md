@@ -1,5 +1,7 @@
 # ProfitHunter
 
+[![CI](https://github.com/0jz/ProfitHunter/actions/workflows/ci.yml/badge.svg)](https://github.com/0jz/ProfitHunter/actions/workflows/ci.yml)
+
 An AI agent that turns a vague startup idea into a paid demand test: it researches the market, picks the most sellable product wedge, and proves validation with a small buyer payment on Solana. Built for hackathon founders who need a "would anyone pay?" signal in 48 hours.
 
 ![React](https://img.shields.io/badge/React_19-20232A?logo=react&logoColor=61DAFB)
